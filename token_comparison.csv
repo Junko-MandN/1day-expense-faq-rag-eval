@@ -1,0 +1,4 @@
+method,total_tokens,average_tokens_per_question,accuracy_rate,grounding_rate
+A,2890,289.0,40%,10%
+B,9352,935.2,100%,90%
+C,4432,443.2,80%,100%
