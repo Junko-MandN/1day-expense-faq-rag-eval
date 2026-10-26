@@ -8,7 +8,7 @@ A small Python prototype that answers questions from a **fictional** expense pol
 
 - **A:** model only (no policy)
 - **B:** the full policy in the prompt
-- **C:** simple keyword-retrieval RAG (relevant policy lines only; not semantic search)
+- **C:** simple keyword-retrieval RAG (relevant policy lines only, picked with a small hand-made keyword list; not semantic search)
 
 | | A: model only | B: full policy | C: keyword RAG |
 |---|---:|---:|---:|
@@ -22,9 +22,11 @@ A small Python prototype that answers questions from a **fictional** expense pol
 2. **Check what the model was actually given before blaming the model.** Q5 was a retrieval miss plus an ambiguous policy. Q6 was the opposite: retrieval was complete, but the answer left out an important caution.
 3. **Conditions get lost.** On Q10 the full-text method turned "payment *may* be held" into "payment *will* be held", which my three metrics did not capture.
 
-**Limits:** 10 questions, fictional data, one person scoring by hand, keyword (not semantic) retrieval, and no re-run after fixes. The improvement ideas in this README are untested.
+**Limits:** 10 questions, fictional data, one person scoring by hand, keyword (not semantic) retrieval with a hand-made keyword list tuned to this question set, a single run per question, and no re-run after fixes. The improvement ideas in this README are untested.
 
 **How it was built:** I started with no design in mind and worked with ChatGPT, which drafted the initial design and code. I reviewed and approved each proposal, ran the experiments, scored the results by hand and investigated the mismatches myself. `gpt-4.1-mini` was used as a low-cost model.
+
+Raw answers used for scoring: [results.csv](results.csv)
 
 Details: [docs/results.md](docs/results.md) · [docs/analysis.md](docs/analysis.md) · [docs/architecture.md](docs/architecture.md)
 
@@ -46,7 +48,7 @@ PythonとOpenAI APIを使い、社内の経費精算規程に関するFAQ回答�
 
 | 方式 | 概要 | 検証したいこと |
 |---|---|---|
-| A：モデル単体 | 質問をそのままモデルに渡す | 規程がない場合、どのような回答になるか |
+| A：モデル単体 | 規程を渡さず、一般知識で断定しないよう指示して質問を渡す | 規程がない場合、どのような回答になるか |
 | B：規程全文 | 経費規程全体を質問と一緒に渡す | 規程を与えることで回答品質が改善するか |
 | C：簡易RAG | キーワードで関連する規程行を検索し、質問と一緒に渡す | 必要な情報を絞りながら、回答品質を維持できるか |
 
@@ -59,7 +61,7 @@ PythonとOpenAI APIを使い、社内の経費精算規程に関するFAQ回答�
 - モデル：`gpt-4.1-mini`（検証用に比較的安価なモデルを選択）
 - JSONによる質問・期待する回答の管理
 - テキストファイルによる経費規程の管理
-- Pythonによるキーワード検索
+- Pythonによるキーワード検索（固定の検索語リストから質問に含まれる語を拾い、一部の語に同義語を追加）
 - トークン使用量の記録
 
 ### 処理の流れ
@@ -80,7 +82,7 @@ C方式では、規程ファイルの検索処理をPython側で行い、抽出�
 
 ## 4. 評価方法
 
-同じ10問の質問セットに対する各方式の回答を、1人で手動で評価しました（結果は `evaluation.csv`）。
+同じ10問の質問セットに対する各方式の回答を `results.csv` に保存し、質問ごとに3方式の回答を並べて表示するスクリプト（`show_q1by1.py`）で見比べながら、1人で目視で採点しました（結果は `evaluation.csv`）。
 
 - **正確性（accuracy）：** 期待回答と一致しているか（1または0）
 - **根拠との整合性（grounding）：** 規程に書かれていない内容を、根拠があるかのように断定していないか（1または0）
@@ -109,9 +111,9 @@ C方式では、規程ファイルの検索処理をPython側で行い、抽出�
 - 「適切な回答保留」は、評価対象の質問数が方式ごとに異なる（A：8問、B：2問、C：2問）ため、他の指標と同じようには比較できない。
 - 「簡易RAG」は意味検索ではなく、キーワードで規程の行を検索する方式である。
 
-### 5.2 A：モデル単体は、規程を根拠にしていない
+### 5.2 A：モデル単体は、規程を根拠にできない
 
-規程を与えない場合、モデルは一般的な企業のルールをもとに回答する。文章が自然でも、対象企業の規程に合っているとは限らない。期待回答と一致した4問も、規程を根拠にしたものではない（根拠との整合性は1/10）。
+規程を渡さない場合、モデルは会社固有のルールを知らないため、一般論で回答するか、社内規程の確認を促す回答になった。Aには「一般知識で断定せず、会社固有のルールが分からない場合はその旨を伝える」という指示を付けており、この指示が、回答保留（7/8）を増やした可能性がある。指示を付けない素のモデルでは測っていない。期待回答と一致した4問も、規程を根拠にしたものではない（根拠との整合性は1/10）。
 
 ### 5.3 B：規程全文は一致率が高いが、トークン数が多い
 
@@ -216,17 +218,19 @@ Q5は、結果だけを見ると「AIが保留した」「規程が曖昧だっ�
 
 ### 8.1 現時点の限界
 
-- キーワード検索は単純な方式であり、表記揺れや言い換えに弱い（Q5で確認）。
+- キーワード検索は単純な方式である。検索語は固定のリストで、今回の規程と質問に合わせて用意したため、新しい質問には対応できない。同義語の追加も5語のみで、表記揺れや言い換えに弱い（Q5で確認）。
 - 「精算」のような広いキーワードでは、関連の薄い行が多く混ざる。
 - 取得できた行に必要な条件が揃っていても、回答に反映されるとは限らない（Q6で確認）。
 - 規程の曖昧さは、検索処理だけでは解消できない。
 - 評価は手動であり、採点者による判断の差が生じる可能性がある。
+- 各質問は1回だけ実行しており、温度などの設定は既定値のため、再実行すると回答が変わる可能性がある。採点に使った実行結果は `results.csv` に保存している。
+- 方式間で、指示文と出力の上限（Aは400トークン、BとCは200トークン）が完全には揃っていない。
 - 質問数は10問で、規程は架空のデータである。実業務での品質を保証するものではない。
 - 修正後の再実験は行っていない。以下の改善案は、いずれも効果を検証していない。
 
 ### 8.2 改善案（いずれも未検証）
 
-1. **検索の改善：** 表記揺れへの対応（例：「宿泊費」を「宿泊」に）、キーワードの一致数による行の点数づけと上位の行への絞り込み。さらにその先として、意味検索の検証。
+1. **検索の改善：** 同義語・表記揺れへの対応の拡充（現在は5語のみ。例：「宿泊費」に加えて「宿泊」も検索語にする）、キーワードの一致数による行の点数づけと上位の行への絞り込み。さらにその先として、意味検索の検証。
 2. **検索結果の自動確認：** `questions.json` に「答えに必要な規程行」の欄を追加し、検索で必要な行が取得できたかを自動で数える。
 3. **回答指示の改善：** 重要な注意点や条件を省略しない指示を追加し、同じ質問を複数回実行して、Q6のような省略が減るかを確認する。
 4. **採点基準の拡張：** 6.1の分類で採点する。Q5の期待回答も、「精算できると読めるが、規程に明記はないため、確認が必要」のように見直す。
@@ -248,8 +252,10 @@ python answer_once.py      # 単一質問でのAPI動作確認
 python answer_all_a.py     # A：モデル単体
 python answer_all_b.py     # B：規程全文
 python answer_all_c.py     # C：簡易RAG（キーワード検索）
+python show_q1by1.py       # results.csv の回答を、質問番号を指定して3方式並べて表示（採点に使用）
 ```
 
+- `results.csv` は、A・B・Cそれぞれの全問の出力テキストを、Pythonスクリプトでマージして作成した。採点に使った実行結果として同梱している。
 - 使用モデルは `gpt-4.1-mini`。検証用に比較的安価なモデルを選んだ。
 - API利用には別途料金が発生する（今回の規模では少額）。
 - 規程と質問データは、検証用に作成した架空のデータである。
@@ -260,6 +266,8 @@ python answer_all_c.py     # C：簡易RAG（キーワード検索）
 - `questions.json`：テスト質問と期待する回答
 - `answer_once.py`：単一質問でのAPI動作確認
 - `answer_all_a.py` / `answer_all_b.py` / `answer_all_c.py`：3方式の一括実行
+- `results.csv`：各方式の出力テキストをマージした、回答とトークン数（採点に使った実行結果）
+- `show_q1by1.py`：質問ごとに3方式の回答を並べて表示する、採点用のスクリプト
 - `evaluation.csv`：質問ごとの手動評価（一致・根拠・保留・失敗理由・備考）
 - `token_comparison.csv`：方式別のトークン数と集計
 - `docs/results.md`：検証結果の詳細
