@@ -28,6 +28,8 @@ A small Python prototype that answers questions from a **fictional** expense pol
 
 Raw answers used for scoring: [results.csv](results.csv)
 
+Workshop concept built on these findings (120 minutes, **not yet delivered**): [workshop/](workshop/)
+
 Details: [docs/results.md](docs/results.md) · [docs/analysis.md](docs/analysis.md) · [docs/architecture.md](docs/architecture.md)
 
 ---
@@ -273,13 +275,13 @@ python show_q1by1.py       # results.csv の回答を、質問番号を指定し
 - `docs/results.md`：検証結果の詳細
 - `docs/analysis.md`：Q5・Q6の原因調査（検索された規程行と各方式の回答）
 - `docs/architecture.md`：構成図と処理の説明
-- `workshop/`：90分のワークショップ案
+- `workshop/`：120分（休憩10分を含む）のワークショップ案。講師向けの詳細版（Word）と、受講者向け案内（日本語版・英語版、A4一枚）。**構想の段階で、まだ実施していない**
 
 ## 11. 次のステップ
 
 - 新しい質問セットを用意し、検索の改善と回答指示の改善が、一致率と根拠との整合性に与える影響を確認する。
 - 6.1の分類による採点基準で、3方式を再評価する。
-- この検証結果を題材に、他の人が再現できる形のワークショップに発展させる。
+- この検証結果を題材にした120分のワークショップ案（`workshop/`）は、構想の段階である。小規模に試行したうえで、内容を見直す。
 
 ## 12. 実運用を想定した設計方針
 
